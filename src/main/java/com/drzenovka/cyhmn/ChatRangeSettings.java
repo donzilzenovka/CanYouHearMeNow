@@ -13,6 +13,7 @@ public class ChatRangeSettings {
     public double hearRange = 32.0;
     public double whisperMultiplier = 0.2;
     public double shoutMultiplier = 2.0;
+    public boolean showRelativeDirection = true; // new feature
 
     public ChatRangeSettings(File configFile) {
         this.configFile = configFile;
@@ -36,6 +37,15 @@ public class ChatRangeSettings {
                 .getDouble(whisperMultiplier);
             shoutMultiplier = cfg.get("ranges", "shoutMultiplier", shoutMultiplier, "Range multiplier for shouts")
                 .getDouble(shoutMultiplier);
+
+            showRelativeDirection = cfg
+                .get(
+                    "features",
+                    "showRelativeDirection",
+                    showRelativeDirection,
+                    "Show chat direction relative to listener")
+                .getBoolean(showRelativeDirection);
+
         } finally {
             if (cfg.hasChanged()) cfg.save();
         }

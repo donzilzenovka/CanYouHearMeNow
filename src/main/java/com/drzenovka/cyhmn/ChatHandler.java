@@ -22,10 +22,12 @@ public class ChatHandler {
         EntityPlayerMP sender = (EntityPlayerMP) event.player;
         if (sender == null) return;
 
-        double clearRange = CanYouHearMeNow.chatSettings.clearRange;
-        double hearRange = CanYouHearMeNow.chatSettings.hearRange;
-        double whisperMultiplier = CanYouHearMeNow.chatSettings.whisperMultiplier;
-        double shoutMultiplier = CanYouHearMeNow.chatSettings.shoutMultiplier;
+        ChatRangeSettings settings = CanYouHearMeNow.chatSettings;
+        double clearRange = settings.clearRange;
+        double hearRange = settings.hearRange;
+        double whisperMultiplier = settings.whisperMultiplier;
+        double shoutMultiplier = settings.shoutMultiplier;
+        boolean showRelativeDirection = settings.showRelativeDirection;
 
         String prefixTag = "";
 
@@ -52,6 +54,7 @@ public class ChatHandler {
         if (server == null) return;
 
         List<EntityPlayerMP> players = server.getConfigurationManager().playerEntityList;
+
         double clearRangeSq = clearRange * clearRange;
         double hearRangeSq = hearRange * hearRange;
         double rangeSpan = Math.max(1.0, hearRange - clearRange);
@@ -68,29 +71,51 @@ public class ChatHandler {
 
             String delivered;
             if (distSq <= clearRangeSq) {
-                delivered = prefixTag + raw;
+                delivered = raw;
             } else {
                 double dist = Math.sqrt(distSq);
                 double aud = 1.0 - ((dist - clearRange) / rangeSpan);
                 aud = Math.max(0.0, Math.min(1.0, aud));
-                delivered = prefixTag + garbleByAudibility(raw, aud);
+                delivered = garbleByAudibility(raw, aud);
             }
 
+            // Add direction prefix only for listeners, not the speaker
+            String directionPrefix = "";
+            if (showRelativeDirection && recipient != sender) {
+                double angleToSpeaker = Math.toDegrees(Math.atan2(-dx, dz));
+                angleToSpeaker = (angleToSpeaker + 360) % 360;
+
+                double listenerYaw = (recipient.rotationYaw % 360 + 360) % 360;
+                double relativeAngle = (angleToSpeaker - listenerYaw + 360) % 360;
+
+                directionPrefix = "[" + getRelativeDirection(relativeAngle) + "] ";
+            }
+
+            String senderName = sender.getCommandSenderName();
             recipient.addChatMessage(
-                new ChatComponentText(String.format("<%s> %s", sender.getCommandSenderName(), delivered)));
+                new ChatComponentText(String.format("<%s> %s%s%s", senderName, directionPrefix, prefixTag, delivered)));
         }
 
         server.logWarning(String.format("[CanYouHearMeNow] %s: %s", sender.getCommandSenderName(), raw));
     }
 
+    private String getRelativeDirection(double relativeAngle) {
+        // 0° is straight ahead of the listener, clockwise rotation
+        if (relativeAngle >= 337.5 || relativeAngle < 22.5) return "N";
+        if (relativeAngle >= 22.5 && relativeAngle < 67.5) return "NE";
+        if (relativeAngle >= 67.5 && relativeAngle < 112.5) return "E";
+        if (relativeAngle >= 112.5 && relativeAngle < 157.5) return "SE";
+        if (relativeAngle >= 157.5 && relativeAngle < 202.5) return "S";
+        if (relativeAngle >= 202.5 && relativeAngle < 247.5) return "SW";
+        if (relativeAngle >= 247.5 && relativeAngle < 292.5) return "W";
+        return "NW";
+    }
+
     private String garbleByAudibility(String text, double audibility) {
         StringBuilder sb = new StringBuilder(text.length());
         for (char c : text.toCharArray()) {
-            if (Character.isWhitespace(c)) {
-                sb.append(c);
-            } else {
-                sb.append(rand.nextDouble() <= audibility ? c : randomGarbler());
-            }
+            if (Character.isWhitespace(c)) sb.append(c);
+            else sb.append(rand.nextDouble() <= audibility ? c : randomGarbler());
         }
         return sb.toString();
     }
