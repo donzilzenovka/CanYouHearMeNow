@@ -14,6 +14,7 @@ public class ChatRangeSettings {
     public double whisperMultiplier = 0.2;
     public double shoutMultiplier = 2.0;
     public boolean showRelativeDirection = true; // new feature
+    public static boolean muffledChat = true;
 
     public ChatRangeSettings(File configFile) {
         this.configFile = configFile;
@@ -45,6 +46,9 @@ public class ChatRangeSettings {
                     showRelativeDirection,
                     "Show chat direction relative to listener")
                 .getBoolean(showRelativeDirection);
+            muffledChat = cfg
+                .get("features", "muffledChat", muffledChat, "If true, messages blocked by terrain will appear muffled")
+                .getBoolean(muffledChat);
 
         } finally {
             if (cfg.hasChanged()) cfg.save();

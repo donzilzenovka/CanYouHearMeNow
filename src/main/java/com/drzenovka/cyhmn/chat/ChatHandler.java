@@ -1,12 +1,17 @@
-package com.drzenovka.cyhmn;
+package com.drzenovka.cyhmn.chat;
 
 import java.util.List;
 import java.util.Random;
 
+import net.minecraft.block.Block;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.Vec3;
 import net.minecraftforge.event.ServerChatEvent;
+
+import com.drzenovka.cyhmn.config.ModConfig;
 
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 
@@ -22,12 +27,11 @@ public class ChatHandler {
         EntityPlayerMP sender = (EntityPlayerMP) event.player;
         if (sender == null) return;
 
-        ChatRangeSettings settings = CanYouHearMeNow.chatSettings;
-        double clearRange = settings.clearRange;
-        double hearRange = settings.hearRange;
-        double whisperMultiplier = settings.whisperMultiplier;
-        double shoutMultiplier = settings.shoutMultiplier;
-        boolean showRelativeDirection = settings.showRelativeDirection;
+        double clearRange = ModConfig.chatRange;
+        double hearRange = ModConfig.hearRange;
+        double whisperMultiplier = ModConfig.whisperMultiplier;
+        double shoutMultiplier = ModConfig.shoutMultiplier;
+        boolean showRelativeDirection = ModConfig.directionalChat;
 
         String prefixTag = "";
 
@@ -81,14 +85,23 @@ public class ChatHandler {
 
             // Add direction prefix only for listeners, not the speaker
             String directionPrefix = "";
+            double relativeAngle = 0;
             if (showRelativeDirection && recipient != sender) {
                 double angleToSpeaker = Math.toDegrees(Math.atan2(-dx, dz));
                 angleToSpeaker = (angleToSpeaker + 360) % 360;
 
                 double listenerYaw = (recipient.rotationYaw % 360 + 360) % 360;
-                double relativeAngle = (angleToSpeaker - listenerYaw + 360) % 360;
+                relativeAngle = (angleToSpeaker - listenerYaw + 360) % 360;
 
                 directionPrefix = "[" + getRelativeDirection(relativeAngle) + "] ";
+            }
+
+            boolean obstructed = ModConfig.muffledChat && isLineObstructed(sender, recipient, 40);
+            if (obstructed && recipient != sender) {
+                delivered = net.minecraft.util.EnumChatFormatting.GRAY + ""
+                    + net.minecraft.util.EnumChatFormatting.ITALIC
+                    + delivered;
+                directionPrefix = "[muffled from " + getRelativeDirection(relativeAngle) + "] ";
             }
 
             String senderName = sender.getCommandSenderName();
@@ -128,4 +141,29 @@ public class ChatHandler {
             default -> '#';
         };
     }
+
+    private boolean isLineObstructed(EntityPlayer speaker, EntityPlayer listener, int maxSteps) {
+        Vec3 start = Vec3.createVectorHelper(speaker.posX, speaker.posY + speaker.getEyeHeight(), speaker.posZ);
+        Vec3 end = Vec3.createVectorHelper(listener.posX, listener.posY + listener.getEyeHeight(), listener.posZ);
+        Vec3 direction = end.subtract(start)
+            .normalize();
+
+        double stepSize = 0.5; // Half a block per step
+        double distance = speaker.getDistanceToEntity(listener);
+        int steps = Math.min((int) (distance / stepSize), maxSteps);
+
+        for (int i = 0; i < steps; i++) {
+            start = start
+                .addVector(direction.xCoord * stepSize, direction.yCoord * stepSize, direction.zCoord * stepSize);
+            Block block = speaker.worldObj.getBlock(
+                (int) Math.floor(start.xCoord),
+                (int) Math.floor(start.yCoord),
+                (int) Math.floor(start.zCoord));
+            if (block.isOpaqueCube()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 }
